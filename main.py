@@ -1,55 +1,37 @@
-import teleboimport telebot
+import telebot
 import yt_dlp
 import os
 
-# 🔑 Bot tokeningni shu joyga yoz
-BOT_TOKEN = "7128571871:AAGR90GI8BigBA2KLpDFD415VFwiWuZSrao"
-
+BOT_TOKEN = os.getenv("7128571871:AAGR90GI8BigBA2KLpDFD415VFwiWuZSrao")
 bot = telebot.TeleBot(BOT_TOKEN)
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.send_message(
-        message.chat.id,
-        "🎧 Salom, men Jonibek Musiqa botman!\n"
-        "Menga YouTube, TikTok yoki Instagram link yubor — men uni yuklab beraman va nomi bilan saqlayman 🎵"
-    )
+    bot.reply_to(message, "🎵 Salom! Men Jonibek Music Botman!\n"
+                          "Menga YouTube, Instagram yoki TikTok link yuboring 🎧")
 
 @bot.message_handler(func=lambda message: True)
-def download_media(message):
-    url = message.text.strip()
-    if not (url.startswith("http://") or url.startswith("https://")):
-        bot.reply_to(message, "❌ Iltimos, to‘liq video yoki qo‘shiq linkini yubor.")
-        return
+def download_music(message):
+    url = message.text
+    if "http" in url:
+        try:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'outtmpl': 'song.%(ext)s',
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
 
-    bot.reply_to(message, "⏳ Yuklab olayapman, biroz kuting...")
+            for file in os.listdir():
+                if file.endswith(".mp3") or file.endswith(".m4a"):
+                    bot.send_audio(message.chat.id, open(file, "rb"))
+                    os.remove(file)
+                    break
 
-    try:
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": "%(title)s.%(ext)s",  # Fayl nomi avtomatik qo‘shiq nomi bo‘ladi
-            "quiet": True,
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            }],
-        }
+        except Exception as e:
+            bot.reply_to(message, f"❌ Xatolik yuz berdi: {e}")
+    else:
+        bot.reply_to(message, "⚠️ Iltimos, to‘g‘ri video link yuboring (YouTube, Instagram, TikTok)!")
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            file_name = ydl.prepare_filename(info)
-            base, _ = os.path.splitext(file_name)
-            mp3_file = base + ".mp3"
-
-        with open(mp3_file, "rb") as audio:
-            bot.send_audio(message.chat.id, audio, title=info.get("title", "Qo‘shiq"))
-
-        os.remove(mp3_file)
-        bot.send_message(message.chat.id, f"✅ Yuklab bo‘ldi: {info.get('title', 'Noma’lum')}")
-
-    except Exception as e:
-        bot.reply_to(message, f"⚠️ Xato yuz berdi:\n{e}")
-
-bot.polling()
-
+print("✅ Bot ishlayapti...")
+bot.polling(none_stop=True)
